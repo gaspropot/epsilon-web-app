@@ -1,0 +1,327 @@
+﻿@page "/customers"
+@rendermode InteractiveServer
+@inject CustomerApiService CustomerApiService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>Customers</PageTitle>
+
+@if (!_isReady)
+{
+    <MudProgressLinear Indeterminate="true" />
+}
+else
+{
+    <MudText Typo="Typo.h4" Class="mb-4">Customers</MudText>
+
+    <MudButton Variant="Variant.Filled"
+               Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OpenCreateDialog"
+               Class="mb-4">
+        New Customer
+    </MudButton>
+
+    <MudDataGrid T="CustomerDto"
+                 ServerData="LoadGridData"
+                 @ref="_grid"
+                 Pageable="true"
+                 PageSize="10"
+                 Filterable="false"
+                 SortMode="SortMode.None"
+                 Elevation="2">
+        <Columns>
+            <PropertyColumn Property="x => x.CompanyName" Title="Company" />
+            <PropertyColumn Property="x => x.ContactName" Title="Contact" />
+            <PropertyColumn Property="x => x.City" Title="City" />
+            <PropertyColumn Property="x => x.Country" Title="Country" />
+            <PropertyColumn Property="x => x.Phone" Title="Phone" />
+            <TemplateColumn Title="Actions" CellClass="d-flex gap-2">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OpenDeleteDialog(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+
+    @if (_showFormDialog)
+    {
+        <MudPaper Class="pa-6 mt-6" Elevation="4">
+            <MudText Typo="Typo.h6" Class="mb-4">
+                @(_editingCustomer is null ? "New Customer" : "Edit Customer")
+            </MudText>
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formModel.CompanyName"
+                                  Label="Company Name"
+                                  Variant="Variant.Outlined"
+                                  Required="true" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formModel.ContactName"
+                                  Label="Contact Name"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_formModel.Address"
+                                  Label="Address"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formModel.City"
+                                  Label="City"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formModel.Region"
+                                  Label="Region"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formModel.PostalCode"
+                                  Label="Postal Code"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formModel.Country"
+                                  Label="Country"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_formModel.Phone"
+                                  Label="Phone"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+
+            <MudStack Row="true" Class="mt-4" Justify="Justify.FlexEnd">
+                <MudButton OnClick="CloseFormDialog"
+                           Variant="Variant.Outlined">
+                    Cancel
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="SubmitForm"
+                           Disabled="_isLoading">
+                    @if (_isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small"
+                                             Indeterminate="true"
+                                             Class="mr-2" />
+                    }
+                    @(_editingCustomer is null ? "Create" : "Save Changes")
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (_showDeleteDialog)
+    {
+        <MudPaper Class="pa-6 mt-6" Elevation="4">
+            <MudText Typo="Typo.h6" Color="Color.Error" Class="mb-4">
+                Delete Customer
+            </MudText>
+            <MudText Class="mb-4">
+                Are you sure you want to delete
+                <strong>@_deletingCustomer?.CompanyName</strong>?
+                This action cannot be undone.
+            </MudText>
+            <MudStack Row="true" Justify="Justify.FlexEnd">
+                <MudButton OnClick="CloseDeleteDialog"
+                           Variant="Variant.Outlined">
+                    Cancel
+                </MudButton>
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Error"
+                           OnClick="ConfirmDelete"
+                           Disabled="_isLoading">
+                    @if (_isLoading)
+                    {
+                        <MudProgressCircular Size="Size.Small"
+                                             Indeterminate="true"
+                                             Class="mr-2" />
+                    }
+                    Delete
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+}
+
+@code {
+    private MudDataGrid<CustomerDto>? _grid;
+    private bool _isReady = false;
+    private bool _isLoading = false;
+
+    // Form dialog state
+    private bool _showFormDialog = false;
+    private CustomerDto? _editingCustomer = null;
+    private CreateCustomerDto _formModel = new();
+
+    // Delete dialog state
+    private bool _showDeleteDialog = false;
+    private CustomerDto? _deletingCustomer = null;
+
+    // protected override async Task OnInitializedAsync()
+    // {
+    //     var token = AuthService.GetToken();
+    //     if (string.IsNullOrEmpty(token))
+    //     {
+    //         Navigation.NavigateTo("/login");
+    //         return;
+    //     }
+    //     _isReady = true;
+    // }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var authState = await AuthService.GetAuthenticationStateAsync();
+            if (!authState.User.Identity?.IsAuthenticated ?? true)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+            _isReady = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task<GridData<CustomerDto>> LoadGridData(GridState<CustomerDto> state,
+        CancellationToken cancellationToken)
+    {
+        var page = state.Page + 1;
+        var result = await CustomerApiService.GetPagedAsync(page, state.PageSize, cancellationToken);
+
+        return new GridData<CustomerDto>
+        {
+            Items = result?.Items ?? [],
+            TotalItems = result?.TotalCount ?? 0
+        };
+    }
+
+    // Create
+    private void OpenCreateDialog()
+    {
+        _showDeleteDialog = false;
+        _editingCustomer = null;
+        _formModel = new CreateCustomerDto();
+        _showFormDialog = true;
+    }
+
+    // Edit
+    private void OpenEditDialog(CustomerDto customer)
+    {
+        _showDeleteDialog = false;
+        _editingCustomer = customer;
+        _formModel = new CreateCustomerDto
+        {
+            CompanyName = customer.CompanyName ?? string.Empty,
+            ContactName = customer.ContactName,
+            Address = customer.Address,
+            City = customer.City,
+            Region = customer.Region,
+            PostalCode = customer.PostalCode,
+            Country = customer.Country,
+            Phone = customer.Phone
+        };
+        _showFormDialog = true;
+    }
+
+    private void CloseFormDialog()
+    {
+        _showFormDialog = false;
+        _editingCustomer = null;
+        _formModel = new CreateCustomerDto();
+    }
+
+    private async Task SubmitForm()
+    {
+        if (string.IsNullOrWhiteSpace(_formModel.CompanyName))
+            return;
+
+        _isLoading = true;
+
+        bool success;
+
+        if (_editingCustomer is null)
+        {
+            success = await CustomerApiService.CreateAsync(_formModel);
+        }
+        else
+        {
+            var updateDto = new UpdateCustomerDto
+            {
+                CompanyName = _formModel.CompanyName,
+                ContactName = _formModel.ContactName,
+                Address = _formModel.Address,
+                City = _formModel.City,
+                Region = _formModel.Region,
+                PostalCode = _formModel.PostalCode,
+                Country = _formModel.Country,
+                Phone = _formModel.Phone
+            };
+            success = await CustomerApiService.UpdateAsync(_editingCustomer.Id, updateDto);
+        }
+
+        if (success)
+        {
+            Snackbar.Add(
+                _editingCustomer is null ? "Customer created." : "Customer updated.",
+                Severity.Success);
+            CloseFormDialog();
+            await _grid!.ReloadServerData();
+        }
+        else
+        {
+            Snackbar.Add("Something went wrong.", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+
+    // Delete
+    private void OpenDeleteDialog(CustomerDto customer)
+    {
+        _showFormDialog = false;
+        _deletingCustomer = customer;
+        _showDeleteDialog = true;
+    }
+
+    private void CloseDeleteDialog()
+    {
+        _showDeleteDialog = false;
+        _deletingCustomer = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_deletingCustomer is null) return;
+
+        _isLoading = true;
+
+        var success = await CustomerApiService.DeleteAsync(_deletingCustomer.Id);
+        if (success)
+        {
+            Snackbar.Add("Customer deleted.", Severity.Success);
+            CloseDeleteDialog();
+            await _grid!.ReloadServerData();
+        }
+        else
+        {
+            Snackbar.Add("Failed to delete customer.", Severity.Error);
+        }
+
+        _isLoading = false;
+    }
+}

@@ -1,0 +1,17 @@
+﻿
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData"
+                                DefaultLayout="@typeof(EpsilonWebApp.Components.Layout.MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <p>Page not found.</p>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>
